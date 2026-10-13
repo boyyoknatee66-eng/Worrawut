@@ -1,0 +1,347 @@
+/* ============================================================
+   ทัพนักกีฬาไทย — design tokens
+   ============================================================ */
+:root{
+  --navy: #0B2545;
+  --navy-light: #163463;
+  --red: #A51931;
+  --red-dark: #7E1224;
+  --gold: #C9A227;
+  --cream: #F7F4EC;
+  --cream-deep: #EFEADC;
+  --ink: #1C2027;
+  --muted: #646B76;
+  --line: #E1DBCA;
+  --line-strong: #CFC7AF;
+  --white: #FFFFFF;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --font-display: "Noto Serif Thai", "Noto Serif", serif;
+  --font-body: "Noto Sans Thai", "Noto Sans", system-ui, sans-serif;
+  --shadow-card: 0 1px 2px rgba(11,37,69,0.06);
+}
+
+*{ box-sizing: border-box; }
+html{ scroll-behavior: smooth; }
+
+body{
+  margin:0;
+  font-family: var(--font-body);
+  background: var(--cream);
+  color: var(--ink);
+  line-height:1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a{ color: inherit; }
+
+::selection{ background: var(--gold); color: var(--navy); }
+
+:focus-visible{
+  outline: 2.5px solid var(--red);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ---------------- topbar ---------------- */
+.topbar{
+  position: sticky; top:0; z-index: 40;
+  background: var(--navy);
+  color: var(--cream);
+  border-bottom: 3px solid var(--red);
+}
+.topbar-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 12px 24px;
+  display:flex; align-items:center; justify-content:space-between;
+  gap: 20px;
+}
+.brand{
+  display:flex; align-items:center; gap:10px;
+  text-decoration:none; color: var(--white);
+}
+.brand-mark{ color: var(--gold); display:flex; }
+.brand-text{
+  font-family: var(--font-display);
+  font-weight:600;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+}
+.tabs{ display:flex; gap:4px; }
+.tab{
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight:600;
+  background: transparent;
+  border: none;
+  color: rgba(247,244,236,0.72);
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tab:hover{ background: rgba(255,255,255,0.08); color: var(--white); }
+.tab.is-active{ background: var(--cream); color: var(--navy); }
+
+/* ---------------- hero ---------------- */
+.hero{
+  background:
+    radial-gradient(circle at 88% -10%, rgba(201,162,39,0.18), transparent 55%),
+    var(--navy);
+  color: var(--cream);
+}
+.hero-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 56px 24px 44px;
+}
+.hero-eyebrow{
+  margin:0 0 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+.hero-title{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2rem, 4.4vw, 3rem);
+  line-height: 1.22;
+  margin: 0 0 18px;
+  max-width: 16ch;
+}
+.hero-sub{
+  max-width: 62ch;
+  color: rgba(247,244,236,0.82);
+  font-size: 1.02rem;
+  margin: 0 0 34px;
+}
+.hero-stats{
+  display:flex; flex-wrap:wrap; gap: 36px;
+  margin:0; padding-top: 24px;
+  border-top: 1px solid rgba(247,244,236,0.18);
+}
+.stat dt{
+  font-size: 0.82rem;
+  color: rgba(247,244,236,0.66);
+  margin-bottom: 6px;
+}
+.stat dd{
+  margin:0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--white);
+}
+
+/* ---------------- controls ---------------- */
+.controls{
+  position: sticky; top: 53px; z-index: 30;
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+}
+.controls-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 16px 24px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+}
+.search-field{
+  flex: 1 1 260px;
+  display:flex; align-items:center; gap:10px;
+  background: var(--white);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  padding: 10px 14px;
+  color: var(--muted);
+}
+.search-field:focus-within{ border-color: var(--navy); color: var(--navy); }
+.search-field input{
+  flex:1; border:none; outline:none; background:transparent;
+  font-family: var(--font-body); font-size: 0.98rem; color: var(--ink);
+}
+.select-field select{
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  background: var(--white);
+  color: var(--ink);
+  cursor:pointer;
+  max-width: 220px;
+}
+.result-count{
+  margin: 0 0 0 auto;
+  font-size: 0.86rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------------- content view ---------------- */
+.view-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 28px 24px 80px;
+}
+.loading, .empty{
+  color: var(--muted);
+  padding: 40px 0;
+  text-align:center;
+}
+
+.sport-group{
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--white);
+  overflow: hidden;
+}
+.sport-group > summary{
+  list-style:none;
+  cursor:pointer;
+  padding: 16px 20px;
+  display:flex; align-items:center; gap:14px;
+  font-weight: 600;
+}
+.sport-group > summary::-webkit-details-marker{ display:none; }
+.sport-group > summary .chev{
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.sport-group[open] > summary .chev{ transform: rotate(90deg); }
+.sport-group > summary .sport-name{
+  flex:1;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  color: var(--navy);
+}
+.sport-group > summary .sport-count{
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--navy);
+  background: var(--cream-deep);
+  padding: 3px 11px;
+  border-radius: 999px;
+}
+
+.athlete-rows{
+  border-top: 1px solid var(--line);
+}
+.athlete-row{
+  display:flex; align-items:center; gap:14px;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.athlete-row:last-child{ border-bottom:none; }
+.athlete-row:nth-child(odd){ background: rgba(239,234,220,0.35); }
+
+.athlete-name{
+  flex: 1 1 auto;
+  min-width: 160px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.athlete-meta{
+  font-weight:400;
+  color: var(--muted);
+  font-size: 0.86rem;
+  display:block;
+  margin-top: 2px;
+}
+.role-badge{
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-weight:600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--navy);
+  white-space: nowrap;
+}
+.role-badge[data-role="นักกีฬา"]{ background: var(--navy); color: var(--white); border-color: var(--navy); }
+.role-badge[data-role="ผู้ฝึกสอน"]{ background: #fff6e0; border-color: #e3c467; color: #7a5c0a; }
+
+.search-links{
+  flex: 0 0 auto;
+  display:flex; gap:6px;
+}
+.search-links a{
+  display:inline-flex; align-items:center; gap:5px;
+  text-decoration:none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line-strong);
+  color: var(--navy);
+  background: var(--white);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.search-links a:hover{ background: var(--navy); color: var(--white); border-color: var(--navy); }
+.search-links svg{ flex: 0 0 auto; }
+
+/* ---------------- associations ---------------- */
+.assoc-card{
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--white);
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-card);
+}
+.assoc-head{
+  display:flex; align-items:baseline; gap:10px;
+  margin-bottom: 10px;
+}
+.assoc-no{
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--gold);
+  font-weight:700;
+}
+.assoc-name{
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight:600;
+  color: var(--navy);
+}
+.assoc-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 24px;
+  font-size: 0.9rem;
+}
+.assoc-grid dt{ color: var(--muted); font-size: 0.78rem; margin-bottom:2px; }
+.assoc-grid dd{ margin:0; color: var(--ink); }
+.assoc-grid a{ color: var(--navy); text-decoration: underline; text-decoration-color: var(--line-strong); }
+
+/* ---------------- footer ---------------- */
+.site-footer{
+  border-top: 1px solid var(--line);
+  background: var(--cream-deep);
+}
+.site-footer-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 22px 24px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ---------------- responsive ---------------- */
+@media (max-width: 720px){
+  .topbar-inner{ flex-wrap:wrap; gap:10px; }
+  .hero-inner{ padding: 40px 18px 32px; }
+  .hero-stats{ gap:22px; }
+  .controls{ top: 0; }
+  .controls-inner{ padding: 14px 18px; }
+  .view-inner{ padding: 20px 18px 60px; }
+  .result-count{ order: 10; width:100%; margin-left:0; }
+  .athlete-row{ flex-wrap:wrap; }
+  .search-links{ width:100%; }
+  .search-links a{ flex:1; justify-content:center; }
+}
