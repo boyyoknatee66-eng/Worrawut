@@ -351,9 +351,8 @@ a{ color: inherit; }
   flex: 0 0 auto;
   display:flex; gap:6px;
 }
-.search-links .search-popup-btn{
+.search-links a{
   display:inline-flex; align-items:center; gap:5px;
-  font-family: var(--font-body);
   text-decoration:none;
   font-size: 0.78rem;
   font-weight: 600;
@@ -362,25 +361,10 @@ a{ color: inherit; }
   border: 1px solid var(--line-strong);
   color: var(--navy);
   background: var(--white);
-  cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
 }
-.search-links .search-popup-btn:hover{ background: var(--navy); color: var(--white); border-color: var(--navy); }
+.search-links a:hover{ background: var(--navy); color: var(--white); border-color: var(--navy); }
 .search-links svg{ flex: 0 0 auto; }
-
-.assoc-search-btn{
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--navy);
-  background: none;
-  border: none;
-  padding: 0;
-  text-decoration: underline;
-  text-decoration-color: var(--line-strong);
-  cursor: pointer;
-}
-.assoc-search-btn:hover{ text-decoration-color: var(--navy); }
 
 /* ---------------- associations ---------------- */
 .assoc-card{
@@ -440,5 +424,5 @@ a{ color: inherit; }
   .result-count{ order: 10; width:100%; margin-left:0; }
   .athlete-row{ flex-wrap:wrap; }
   .search-links{ width:100%; }
-  .search-links .search-popup-btn{ flex:1; justify-content:center; }
+  .search-links a{ flex:1; justify-content:center; }
 }
