@@ -46,6 +46,26 @@
     return "https://www.google.com/search?q=" + encodeURIComponent(q);
   }
 
+  // Opens Google results in a real popup browser window (not an iframe —
+  // Google blocks framing its search pages), sized to feel like an
+  // in-page preview without leaving the current tab.
+  function openGooglePopup(url) {
+    var w = Math.min(560, Math.round(window.screen.width * 0.9));
+    var h = Math.min(760, Math.round(window.screen.height * 0.85));
+    var left = window.screenX + (window.outerWidth - w) / 2;
+    var top = window.screenY + (window.outerHeight - h) / 2;
+    var features =
+      "width=" + w + ",height=" + h + ",left=" + Math.max(0, left) + ",top=" + Math.max(0, top) +
+      ",scrollbars=yes,resizable=yes,noopener";
+    var win = window.open(url, "googlePreview", features);
+    if (!win) {
+      // popup blocked by the browser — fall back to a normal tab
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      win.focus();
+    }
+  }
+
   function athleteSearchLinks(athlete) {
     var name = athlete.name;
     var sport = (athlete.sport || "").replace(/แห่งประเทศไทย.*$/, "").replace(/^สมาคมกีฬา/, "").trim();
@@ -57,12 +77,20 @@
     return queries
       .map(function (item) {
         return (
-          '<a href="' + googleUrl(item.q) + '" target="_blank" rel="noopener noreferrer" title="' +
-          esc(item.q) + '">' + SEARCH_ICON + "<span>" + esc(item.label) + "</span></a>"
+          '<button type="button" class="search-popup-btn" data-q="' + esc(googleUrl(item.q)) +
+          '" title="' + esc(item.q) + '">' + SEARCH_ICON + "<span>" + esc(item.label) + "</span></button>"
         );
       })
       .join("");
   }
+
+  // delegated click handler: any element with data-q opens a Google popup
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("[data-q]") : null;
+    if (!btn) return;
+    e.preventDefault();
+    openGooglePopup(btn.getAttribute("data-q"));
+  });
 
   // ---------- data loading ----------
   Promise.all([
@@ -245,7 +273,7 @@
               '<div><dt>โทรศัพท์</dt><dd>' + esc(a.phone || "—") + "</dd></div>" +
               '<div><dt>อีเมล</dt><dd>' + (a.email ? esc(a.email) : "—") + "</dd></div>" +
               '<div style="grid-column:1/-1"><dt>ที่ตั้ง/ติดต่อ</dt><dd>' + esc(a.contact_address || "—") + "</dd></div>" +
-              '<div style="grid-column:1/-1"><dt>ค้นหาเพิ่มเติม</dt><dd><a href="' + searchQ + '" target="_blank" rel="noopener noreferrer">ค้นหาใน Google →</a></dd></div>' +
+              '<div style="grid-column:1/-1"><dt>ค้นหาเพิ่มเติม</dt><dd><button type="button" class="search-popup-btn assoc-search-btn" data-q="' + esc(searchQ) + '">ค้นหาใน Google →</button></dd></div>' +
             "</dl>" +
           "</article>"
         );
