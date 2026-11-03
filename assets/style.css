@@ -401,6 +401,108 @@ a{ color: inherit; }
 .assoc-grid dd{ margin:0; color: var(--ink); }
 .assoc-grid a{ color: var(--navy); text-decoration: underline; text-decoration-color: var(--line-strong); }
 
+/* ---------------- global athlete search ---------------- */
+.global-intro{
+  background:
+    radial-gradient(circle at 88% -10%, rgba(201,162,39,0.14), transparent 55%),
+    var(--navy);
+  color: var(--cream);
+}
+.global-intro-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 44px 24px 36px;
+}
+.section-title{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+  line-height: 1.3;
+  margin: 0 0 14px;
+  max-width: 24ch;
+  color: var(--white);
+}
+.section-sub{
+  max-width: 68ch;
+  color: rgba(247,244,236,0.82);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.global-controls{
+  position: sticky; top: 53px; z-index: 30;
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+}
+.global-controls-inner{
+  max-width: 1120px; margin:0 auto;
+  padding: 16px 24px 0;
+  display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+}
+.global-controls .search-field{ flex: 1 1 220px; }
+.global-search-btn{
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 11px 24px;
+  border: none;
+  border-radius: var(--radius-m);
+  background: var(--navy);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.global-search-btn:hover{ background: var(--navy-light); }
+.global-search-btn:disabled{ opacity: 0.6; cursor: wait; }
+.global-hint{
+  max-width: 1120px; margin: 0 auto;
+  padding: 8px 24px 14px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.global-hint a{ color: var(--navy); text-decoration: underline; text-decoration-color: var(--line-strong); }
+
+.global-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.global-card{
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--white);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-card);
+}
+.global-name{
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 0 0 8px;
+}
+.global-meta{
+  margin: 0 0 4px;
+  font-size: 0.86rem;
+  color: var(--ink);
+}
+.global-meta strong{ color: var(--muted); font-weight: 600; }
+.global-link{
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1.5px solid var(--line-strong);
+}
+.global-link:hover{ border-color: var(--navy); }
+.global-source-note{
+  margin: 0 0 16px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 /* ---------------- footer ---------------- */
 .site-footer{
   border-top: 1px solid var(--line);
@@ -425,4 +527,8 @@ a{ color: inherit; }
   .athlete-row{ flex-wrap:wrap; }
   .search-links{ width:100%; }
   .search-links a{ flex:1; justify-content:center; }
+  .global-controls{ top: 0; }
+  .global-controls-inner{ padding: 14px 18px 0; }
+  .global-search-btn{ width:100%; }
+  .global-hint{ padding: 8px 18px 14px; }
 }

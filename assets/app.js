@@ -15,6 +15,7 @@
     associationsList: document.getElementById("associationsList"),
     athletesView: document.getElementById("athletesView"),
     associationsView: document.getElementById("associationsView"),
+    controls: document.querySelector(".controls"),
     searchInput: document.getElementById("searchInput"),
     sportFilter: document.getElementById("sportFilter"),
     roleFilter: document.getElementById("roleFilter"),
@@ -24,6 +25,14 @@
     statSports: document.getElementById("statSports"),
     statAssoc: document.getElementById("statAssoc"),
     tabs: Array.prototype.slice.call(document.querySelectorAll(".tab")),
+    globalIntro: document.getElementById("globalIntro"),
+    globalControlsWrap: document.getElementById("globalControlsWrap"),
+    globalView: document.getElementById("globalView"),
+    globalList: document.getElementById("globalList"),
+    globalNameInput: document.getElementById("globalNameInput"),
+    globalSportInput: document.getElementById("globalSportInput"),
+    globalCountryInput: document.getElementById("globalCountryInput"),
+    globalSearchBtn: document.getElementById("globalSearchBtn"),
   };
 
   function esc(s) {
@@ -127,18 +136,29 @@
         tab.classList.add("is-active");
         tab.setAttribute("aria-selected", "true");
         state.view = tab.getAttribute("data-view");
+
         var isAthletes = state.view === "athletes";
+        var isAssociations = state.view === "associations";
+        var isGlobal = state.view === "global";
+
         els.athletesView.hidden = !isAthletes;
-        els.associationsView.hidden = isAthletes;
+        els.associationsView.hidden = !isAssociations;
+        els.globalIntro.hidden = !isGlobal;
+        els.globalControlsWrap.hidden = !isGlobal;
+        els.globalView.hidden = !isGlobal;
+        els.controls.style.display = isGlobal ? "none" : "";
+
         els.sportFilter.closest(".select-field").style.display = isAthletes ? "" : "none";
         els.roleFilterWrap.style.display = isAthletes ? "" : "none";
         els.searchInput.placeholder = isAthletes
           ? "ค้นหาชื่อนักกีฬา หรือชนิดกีฬา…"
           : "ค้นหาชื่อสมาคมกีฬา หรือนายกสมาคม…";
-        render();
+
+        if (!isGlobal) render();
       });
     });
 
+    initGlobalSearch();
     render();
   }
 
@@ -251,5 +271,224 @@
         );
       })
       .join("");
+  }
+
+  // ---------- global athlete search (live, via Wikidata) ----------
+  var WD_API = "https://www.wikidata.org/w/api.php";
+  var WDQS = "https://query.wikidata.org/sparql";
+  var ATHLETE_CLASS = "Q2066131"; // sportsperson
+
+  function fetchJson(url, opts) {
+    var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 15000) : null;
+    var fetchOpts = Object.assign({}, opts || {});
+    if (controller) fetchOpts.signal = controller.signal;
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        if (timer) clearTimeout(timer);
+        if (!res.ok) throw new Error("เครือข่ายขัดข้อง (" + res.status + ")");
+        return res.json();
+      })
+      .catch(function (err) {
+        if (timer) clearTimeout(timer);
+        throw err;
+      });
+  }
+
+  function wbSearchEntities(text, lang) {
+    if (!text) return Promise.resolve([]);
+    var url =
+      WD_API + "?action=wbsearchentities&search=" + encodeURIComponent(text) +
+      "&language=" + lang + "&uselang=" + lang + "&type=item&limit=10&format=json&origin=*";
+    return fetchJson(url)
+      .then(function (data) { return (data.search || []).map(function (s) { return s.id; }); })
+      .catch(function () { return []; });
+  }
+
+  function resolveIds(text) {
+    if (!text) return Promise.resolve([]);
+    return Promise.all([wbSearchEntities(text, "th"), wbSearchEntities(text, "en")]).then(function (pair) {
+      var out = [];
+      pair[0].concat(pair[1]).forEach(function (id) { if (out.indexOf(id) === -1) out.push(id); });
+      return out.slice(0, 10);
+    });
+  }
+
+  function sparqlPersonIds(sportIds, countryIds) {
+    var vals = function (ids) { return ids.map(function (id) { return "wd:" + id; }).join(" "); };
+    var lines = [];
+    lines.push("SELECT DISTINCT ?person WHERE {");
+    lines.push("{ ?person wdt:P106/wdt:P279* wd:" + ATHLETE_CLASS + " . } UNION { ?person wdt:P641 [] . }");
+    if (sportIds.length) {
+      lines.push("?person wdt:P641 ?s0 .");
+      lines.push("VALUES ?s0 { " + vals(sportIds) + " }");
+    }
+    if (countryIds.length) {
+      lines.push("?person wdt:P27 ?c0 .");
+      lines.push("VALUES ?c0 { " + vals(countryIds) + " }");
+    }
+    lines.push("} LIMIT 30");
+    var url = WDQS + "?query=" + encodeURIComponent(lines.join("\n"));
+    return fetchJson(url, { headers: { Accept: "application/sparql-results+json" } }).then(function (data) {
+      return (data.results && data.results.bindings || []).map(function (b) {
+        return b.person.value.split("/").pop();
+      });
+    });
+  }
+
+  function wbGetEntities(ids) {
+    if (!ids.length) return Promise.resolve({});
+    var calls = [];
+    for (var i = 0; i < ids.length; i += 50) {
+      var batch = ids.slice(i, i + 50);
+      var url =
+        WD_API + "?action=wbgetentities&ids=" + batch.join("|") +
+        "&props=labels|claims|sitelinks&languages=th|en&sitefilter=thwiki|enwiki&format=json&origin=*";
+      calls.push(fetchJson(url).then(function (data) { return data.entities || {}; }));
+    }
+    return Promise.all(calls).then(function (parts) {
+      var merged = {};
+      parts.forEach(function (p) { Object.assign(merged, p); });
+      return merged;
+    });
+  }
+
+  function pickLabel(entity, fallback) {
+    if (!entity || !entity.labels) return fallback;
+    return (entity.labels.th && entity.labels.th.value) || (entity.labels.en && entity.labels.en.value) || fallback;
+  }
+
+  function claimIds(entity, prop) {
+    var claims = entity && entity.claims && entity.claims[prop];
+    if (!claims) return [];
+    return claims
+      .map(function (c) {
+        var dv = c.mainsnak && c.mainsnak.datavalue;
+        return dv && dv.value && dv.value.id;
+      })
+      .filter(Boolean);
+  }
+
+  function claimYear(entity, prop) {
+    var claims = entity && entity.claims && entity.claims[prop];
+    if (!claims || !claims.length) return null;
+    var dv = claims[0].mainsnak && claims[0].mainsnak.datavalue;
+    var t = dv && dv.value && dv.value.time;
+    var m = t && /([+-]\d{4,})-/.exec(t);
+    return m ? String(parseInt(m[1], 10)) : null;
+  }
+
+  function globalArticleLink(entity) {
+    var sl = entity.sitelinks || {};
+    if (sl.thwiki) return "https://th.wikipedia.org/wiki/" + encodeURIComponent(sl.thwiki.title);
+    if (sl.enwiki) return "https://en.wikipedia.org/wiki/" + encodeURIComponent(sl.enwiki.title);
+    return "https://www.wikidata.org/wiki/" + entity.id;
+  }
+
+  function setGlobalMessage(html) {
+    els.globalList.innerHTML = '<p class="empty">' + html + "</p>";
+  }
+
+  function renderGlobalResults(people, refEntities) {
+    var cards = people
+      .map(function (e) {
+        var name = esc(pickLabel(e, e.id));
+        var sportNames = claimIds(e, "P641").map(function (id) { return pickLabel(refEntities[id], id); });
+        var countryNames = claimIds(e, "P27").map(function (id) { return pickLabel(refEntities[id], id); });
+        var birth = claimYear(e, "P569");
+        var death = claimYear(e, "P570");
+        var years = birth ? "เกิด " + birth + (death ? " – เสียชีวิต " + death : "") : "";
+        return (
+          '<article class="global-card">' +
+            '<h3 class="global-name">' + name + "</h3>" +
+            (sportNames.length ? '<p class="global-meta"><strong>ชนิดกีฬา:</strong> ' + esc(sportNames.join(", ")) + "</p>" : "") +
+            (countryNames.length ? '<p class="global-meta"><strong>ประเทศ:</strong> ' + esc(countryNames.join(", ")) + "</p>" : "") +
+            (years ? '<p class="global-meta">' + esc(years) + "</p>" : "") +
+            '<a class="global-link" href="' + globalArticleLink(e) + '" target="_blank" rel="noopener noreferrer">ดูข้อมูลเพิ่มเติม →</a>' +
+          "</article>"
+        );
+      })
+      .join("");
+    els.globalList.innerHTML =
+      '<p class="global-source-note">พบ ' + people.length.toLocaleString("th-TH") + " รายการ · ข้อมูลจาก Wikidata (อาจไม่ครบถ้วนสมบูรณ์)</p>" +
+      '<div class="global-grid">' + cards + "</div>";
+  }
+
+  function runGlobalSearch() {
+    var name = els.globalNameInput.value.trim();
+    var sportText = els.globalSportInput.value.trim();
+    var countryText = els.globalCountryInput.value.trim();
+
+    if (!name && !sportText && !countryText) {
+      setGlobalMessage("กรุณากรอกชื่อ ชนิดกีฬา หรือประเทศ อย่างน้อย 1 ช่อง แล้วกดค้นหา");
+      return;
+    }
+
+    els.globalSearchBtn.disabled = true;
+    els.globalSearchBtn.textContent = "กำลังค้นหา…";
+    els.globalList.innerHTML = '<p class="loading">กำลังค้นหาจาก Wikidata…</p>';
+
+    Promise.all([resolveIds(sportText), resolveIds(countryText)])
+      .then(function (pair) {
+        var sportIds = pair[0];
+        var countryIds = pair[1];
+        var personIdsPromise = name ? resolveIds(name) : sparqlPersonIds(sportIds, countryIds);
+
+        return personIdsPromise.then(function (personIds) {
+          personIds = personIds.slice(0, 30);
+          if (!personIds.length) return { people: [], refEntities: {} };
+
+          return wbGetEntities(personIds).then(function (entities) {
+            var people = personIds.map(function (id) { return entities[id]; }).filter(function (e) { return e && !e.missing; });
+
+            // when searching by name, verify "is athlete" and apply sport/country filters client-side
+            if (name) {
+              people = people.filter(function (e) { return claimIds(e, "P641").length > 0 || claimIds(e, "P106").length > 0; });
+              if (sportIds.length) {
+                people = people.filter(function (e) {
+                  return claimIds(e, "P641").some(function (id) { return sportIds.indexOf(id) !== -1; });
+                });
+              }
+              if (countryIds.length) {
+                people = people.filter(function (e) {
+                  return claimIds(e, "P27").some(function (id) { return countryIds.indexOf(id) !== -1; });
+                });
+              }
+            }
+
+            var refIds = [];
+            people.forEach(function (e) {
+              claimIds(e, "P641").concat(claimIds(e, "P27")).forEach(function (id) {
+                if (refIds.indexOf(id) === -1) refIds.push(id);
+              });
+            });
+
+            return wbGetEntities(refIds).then(function (refEntities) {
+              return { people: people, refEntities: refEntities };
+            });
+          });
+        });
+      })
+      .then(function (result) {
+        if (!result.people.length) {
+          setGlobalMessage("ไม่พบนักกีฬาที่ตรงกับคำค้นหา ลองปรับคำค้นหาหรือสะกดเป็นภาษาอังกฤษดู");
+          return;
+        }
+        renderGlobalResults(result.people, result.refEntities);
+      })
+      .catch(function (err) {
+        setGlobalMessage("ค้นหาไม่สำเร็จ (" + esc(err.message || "เครือข่ายขัดข้อง") + ") กรุณาลองใหม่อีกครั้ง");
+      })
+      .then(function () {
+        els.globalSearchBtn.disabled = false;
+        els.globalSearchBtn.textContent = "ค้นหา";
+      });
+  }
+
+  function initGlobalSearch() {
+    els.globalControlsWrap.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      runGlobalSearch();
+    });
   }
 })();
