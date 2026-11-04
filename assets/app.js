@@ -33,7 +33,13 @@
     globalSportInput: document.getElementById("globalSportInput"),
     globalCountryInput: document.getElementById("globalCountryInput"),
     globalSearchBtn: document.getElementById("globalSearchBtn"),
+    globalNameSuggest: document.getElementById("globalNameSuggest"),
+    globalSportSuggest: document.getElementById("globalSportSuggest"),
+    globalCountrySuggest: document.getElementById("globalCountrySuggest"),
   };
+
+  // picked suggestion ids (cleared whenever the matching input is edited by hand)
+  var picked = { name: null, sport: null, country: null };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -414,6 +420,15 @@
       '<div class="global-grid">' + cards + "</div>";
   }
 
+  // use the exact picked suggestion when the field still matches it; otherwise fall back to a text search
+  function resolveField(inputEl, pickKey) {
+    var text = inputEl.value.trim();
+    if (!text) return Promise.resolve([]);
+    var p = picked[pickKey];
+    if (p && p.label === text) return Promise.resolve([p.id]);
+    return resolveIds(text);
+  }
+
   function runGlobalSearch() {
     var name = els.globalNameInput.value.trim();
     var sportText = els.globalSportInput.value.trim();
@@ -428,11 +443,11 @@
     els.globalSearchBtn.textContent = "กำลังค้นหา…";
     els.globalList.innerHTML = '<p class="loading">กำลังค้นหาจาก Wikidata…</p>';
 
-    Promise.all([resolveIds(sportText), resolveIds(countryText)])
+    Promise.all([resolveField(els.globalSportInput, "sport"), resolveField(els.globalCountryInput, "country")])
       .then(function (pair) {
         var sportIds = pair[0];
         var countryIds = pair[1];
-        var personIdsPromise = name ? resolveIds(name) : sparqlPersonIds(sportIds, countryIds);
+        var personIdsPromise = name ? resolveField(els.globalNameInput, "name") : sparqlPersonIds(sportIds, countryIds);
 
         return personIdsPromise.then(function (personIds) {
           personIds = personIds.slice(0, 30);
@@ -485,7 +500,144 @@
       });
   }
 
+  // ---------- autocomplete suggestions ----------
+  function wbSearchSuggestions(text) {
+    // merge Thai + English suggestions, de-duplicated by id, each kept with its label/description
+    return Promise.all([
+      fetchJson(
+        WD_API + "?action=wbsearchentities&search=" + encodeURIComponent(text) +
+        "&language=th&uselang=th&type=item&limit=6&format=json&origin=*"
+      ).catch(function () { return { search: [] }; }),
+      fetchJson(
+        WD_API + "?action=wbsearchentities&search=" + encodeURIComponent(text) +
+        "&language=en&uselang=en&type=item&limit=6&format=json&origin=*"
+      ).catch(function () { return { search: [] }; }),
+    ]).then(function (pair) {
+      var seen = {};
+      var out = [];
+      pair[0].search.concat(pair[1].search).forEach(function (s) {
+        if (seen[s.id]) return;
+        seen[s.id] = true;
+        out.push({ id: s.id, label: s.label || s.id, description: s.description || "" });
+      });
+      return out.slice(0, 8);
+    });
+  }
+
+  function highlightMatch(label, query) {
+    var i = label.toLowerCase().indexOf(query.toLowerCase());
+    if (i === -1) return esc(label);
+    return esc(label.slice(0, i)) + "<mark>" + esc(label.slice(i, i + query.length)) + "</mark>" + esc(label.slice(i + query.length));
+  }
+
+  function setupAutocomplete(inputEl, listEl, pickKey) {
+    var debounceTimer = null;
+    var requestSeq = 0;
+    var items = [];
+    var activeIndex = -1;
+
+    function close() {
+      listEl.hidden = true;
+      listEl.innerHTML = "";
+      activeIndex = -1;
+      inputEl.setAttribute("aria-expanded", "false");
+    }
+
+    function renderItems(text) {
+      if (!items.length) {
+        listEl.innerHTML = '<li class="suggest-item-empty">ไม่พบคำแนะนำ — พิมพ์ค้นหาแบบคำที่ต้องการได้เลย</li>';
+        listEl.hidden = false;
+        inputEl.setAttribute("aria-expanded", "true");
+        return;
+      }
+      listEl.innerHTML = items
+        .map(function (it, idx) {
+          return (
+            '<li class="suggest-item" role="option" data-idx="' + idx + '">' +
+              '<span class="suggest-item-label">' + highlightMatch(it.label, text) + "</span>" +
+              (it.description ? '<span class="suggest-item-desc">' + esc(it.description) + "</span>" : "") +
+            "</li>"
+          );
+        })
+        .join("");
+      listEl.hidden = false;
+      inputEl.setAttribute("aria-expanded", "true");
+    }
+
+    function pick(idx) {
+      var it = items[idx];
+      if (!it) return;
+      inputEl.value = it.label;
+      picked[pickKey] = { id: it.id, label: it.label };
+      close();
+    }
+
+    listEl.addEventListener("mousedown", function (ev) {
+      var li = ev.target.closest(".suggest-item");
+      if (!li) return;
+      ev.preventDefault();
+      pick(parseInt(li.getAttribute("data-idx"), 10));
+    });
+
+    inputEl.addEventListener("input", function () {
+      picked[pickKey] = null; // typing by hand invalidates any earlier pick
+      var text = inputEl.value.trim();
+      clearTimeout(debounceTimer);
+      if (text.length < 2) {
+        close();
+        return;
+      }
+      listEl.innerHTML = '<li class="suggest-item-loading">กำลังค้นหาคำแนะนำ…</li>';
+      listEl.hidden = false;
+      debounceTimer = setTimeout(function () {
+        var seq = ++requestSeq;
+        wbSearchSuggestions(text).then(function (results) {
+          if (seq !== requestSeq) return; // a newer keystroke superseded this request
+          items = results;
+          activeIndex = -1;
+          renderItems(text);
+        });
+      }, 300);
+    });
+
+    inputEl.addEventListener("keydown", function (ev) {
+      if (listEl.hidden || !items.length) return;
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        activeIndex = Math.min(activeIndex + 1, items.length - 1);
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, 0);
+      } else if (ev.key === "Enter") {
+        if (activeIndex >= 0) {
+          ev.preventDefault();
+          pick(activeIndex);
+        }
+        return;
+      } else if (ev.key === "Escape") {
+        close();
+        return;
+      } else {
+        return;
+      }
+      Array.prototype.forEach.call(listEl.querySelectorAll(".suggest-item"), function (li, idx) {
+        li.classList.toggle("is-active", idx === activeIndex);
+      });
+      var activeLi = listEl.querySelector(".suggest-item.is-active");
+      if (activeLi) activeLi.scrollIntoView({ block: "nearest" });
+    });
+
+    inputEl.addEventListener("blur", function () {
+      // let a mousedown-triggered pick run first
+      setTimeout(close, 120);
+    });
+  }
+
   function initGlobalSearch() {
+    setupAutocomplete(els.globalNameInput, els.globalNameSuggest, "name");
+    setupAutocomplete(els.globalSportInput, els.globalSportSuggest, "sport");
+    setupAutocomplete(els.globalCountryInput, els.globalCountrySuggest, "country");
+
     els.globalControlsWrap.addEventListener("submit", function (ev) {
       ev.preventDefault();
       runGlobalSearch();
