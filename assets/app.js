@@ -342,6 +342,62 @@
     });
   }
 
+  function sparqlEscape(text) {
+    return text.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  // Search people by name, restricted to athletes only (occupation chain to "sportsperson",
+  // or has a "sport played" value) — avoids matching actors/musicians/etc. who share a name.
+  // Uses Wikidata's own search engine (via the mwapi federation service) so it stays
+  // typo-tolerant and multi-language, instead of a slow/unindexed label substring scan.
+  function sparqlSearchAthletesByName(text, limit) {
+    if (!text) return Promise.resolve([]);
+    var q = sparqlEscape(text);
+    var mwapiBlock = function (lang) {
+      return (
+        "{ SERVICE wikibase:mwapi {" +
+        ' bd:serviceParam wikibase:api "EntitySearch" .' +
+        ' bd:serviceParam wikibase:endpoint "www.wikidata.org" .' +
+        ' bd:serviceParam mwapi:search "' + q + '" .' +
+        ' bd:serviceParam mwapi:language "' + lang + '" .' +
+        " ?person wikibase:apiOutputItem mwapi:item ." +
+        " } }"
+      );
+    };
+    var lines = [];
+    lines.push("SELECT DISTINCT ?person ?personLabel WHERE {");
+    lines.push(mwapiBlock("th") + " UNION " + mwapiBlock("en"));
+    lines.push("{ ?person wdt:P106/wdt:P279* wd:" + ATHLETE_CLASS + " . } UNION { ?person wdt:P641 [] . }");
+    lines.push('SERVICE wikibase:label { bd:serviceParam wikibase:language "th,en". }');
+    lines.push("} LIMIT " + limit);
+    var url = WDQS + "?query=" + encodeURIComponent(lines.join("\n"));
+    return fetchJson(url, { headers: { Accept: "application/sparql-results+json" } })
+      .then(function (data) {
+        return (data.results && data.results.bindings || []).map(function (b) {
+          var id = b.person.value.split("/").pop();
+          return { id: id, label: b.personLabel ? b.personLabel.value : id };
+        });
+      })
+      .catch(function () { return []; });
+  }
+
+  // attach short Wikidata descriptions (e.g. "Argentine footballer") to help tell same-named people apart
+  function withDescriptions(list) {
+    if (!list.length) return Promise.resolve(list);
+    var ids = list.map(function (it) { return it.id; });
+    var url = WD_API + "?action=wbgetentities&ids=" + ids.join("|") + "&props=descriptions&languages=th|en&format=json&origin=*";
+    return fetchJson(url)
+      .then(function (data) {
+        var ents = data.entities || {};
+        return list.map(function (it) {
+          var e = ents[it.id];
+          var desc = (e && e.descriptions && ((e.descriptions.th && e.descriptions.th.value) || (e.descriptions.en && e.descriptions.en.value))) || "";
+          return { id: it.id, label: it.label, description: desc };
+        });
+      })
+      .catch(function () { return list; });
+  }
+
   function wbGetEntities(ids) {
     if (!ids.length) return Promise.resolve({});
     var calls = [];
@@ -421,12 +477,21 @@
   }
 
   // use the exact picked suggestion when the field still matches it; otherwise fall back to a text search
-  function resolveField(inputEl, pickKey) {
+  function resolveField(inputEl, pickKey, resolver) {
     var text = inputEl.value.trim();
     if (!text) return Promise.resolve([]);
     var p = picked[pickKey];
     if (p && p.label === text) return Promise.resolve([p.id]);
-    return resolveIds(text);
+    return (resolver || resolveIds)(text);
+  }
+
+  function resolveAthleteNameIds(text) {
+    return sparqlSearchAthletesByName(text, 25).then(function (list) {
+      if (list.length) return list.map(function (it) { return it.id; });
+      // SPARQL search came back empty (e.g. the federated search service is unavailable) —
+      // fall back to the broader generic lookup so a real person is still findable.
+      return resolveIds(text);
+    });
   }
 
   function runGlobalSearch() {
@@ -447,7 +512,9 @@
       .then(function (pair) {
         var sportIds = pair[0];
         var countryIds = pair[1];
-        var personIdsPromise = name ? resolveField(els.globalNameInput, "name") : sparqlPersonIds(sportIds, countryIds);
+        var personIdsPromise = name
+          ? resolveField(els.globalNameInput, "name", resolveAthleteNameIds)
+          : sparqlPersonIds(sportIds, countryIds);
 
         return personIdsPromise.then(function (personIds) {
           personIds = personIds.slice(0, 30);
@@ -524,13 +591,23 @@
     });
   }
 
+  // name-field suggestions: athletes only (same filter as the search itself), with descriptions
+  // attached afterwards so same-named people (e.g. two boxers named "John Smith") can be told apart
+  function athleteNameSuggestions(text) {
+    return sparqlSearchAthletesByName(text, 8).then(function (list) {
+      if (list.length) return withDescriptions(list);
+      return wbSearchSuggestions(text); // fallback if the athlete-filtered search finds nothing
+    });
+  }
+
   function highlightMatch(label, query) {
     var i = label.toLowerCase().indexOf(query.toLowerCase());
     if (i === -1) return esc(label);
     return esc(label.slice(0, i)) + "<mark>" + esc(label.slice(i, i + query.length)) + "</mark>" + esc(label.slice(i + query.length));
   }
 
-  function setupAutocomplete(inputEl, listEl, pickKey) {
+  function setupAutocomplete(inputEl, listEl, pickKey, sourceFn) {
+    var getSuggestions = sourceFn || wbSearchSuggestions;
     var debounceTimer = null;
     var requestSeq = 0;
     var items = [];
@@ -591,7 +668,7 @@
       listEl.hidden = false;
       debounceTimer = setTimeout(function () {
         var seq = ++requestSeq;
-        wbSearchSuggestions(text).then(function (results) {
+        getSuggestions(text).then(function (results) {
           if (seq !== requestSeq) return; // a newer keystroke superseded this request
           items = results;
           activeIndex = -1;
@@ -634,7 +711,7 @@
   }
 
   function initGlobalSearch() {
-    setupAutocomplete(els.globalNameInput, els.globalNameSuggest, "name");
+    setupAutocomplete(els.globalNameInput, els.globalNameSuggest, "name", athleteNameSuggestions);
     setupAutocomplete(els.globalSportInput, els.globalSportSuggest, "sport");
     setupAutocomplete(els.globalCountryInput, els.globalCountrySuggest, "country");
 
